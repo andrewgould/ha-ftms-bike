@@ -14,3 +14,5 @@ IDLE_TIMEOUT = 300
 COMMAND_TIMEOUT = 5
 # Supported Resistance Level Range (tenths of a level) to assume if the bike doesn't say.
 DEFAULT_RESISTANCE_RANGE = (10, 320, 10)
+
+CONF_RESISTANCE_SCALE = "resistance_scale"

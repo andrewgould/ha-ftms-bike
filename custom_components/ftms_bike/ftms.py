@@ -109,22 +109,36 @@ def request_control() -> bytes:
     return bytes([OP_REQUEST_CONTROL])
 
 
-def resistance_raw(level: float, supported: tuple[int, int, int]) -> int:
+# How a console reads Set Target Resistance.
+SCALE_TENTHS = "tenths"  # as the standard says: tenths of a level
+SCALE_SPREAD = "spread"  # one byte, 0-255 spread across all the levels
+
+
+def default_scale(supported: tuple[int, int, int]) -> str:
+    """A guess for consoles nobody has set: a byte of tenths can't reach past level 25.5,
+    so a console with more levels than that probably spreads the byte instead."""
+    return SCALE_SPREAD if supported[1] > 255 else SCALE_TENTHS
+
+
+def resistance_raw(level: float, supported: tuple[int, int, int], scale: str) -> int:
     """The Set Target Resistance value for a console level.
 
-    The command is one byte in tenths of a level, so it can't reach past level 25.5.
-    Consoles with more levels than that (the SM-810 reports a range of 1-32) spread
-    0-255 across all of them instead: raw 100 is level 12, 200 is 25, 255 is 32.
-    Anything over 255 wraps, so 320 lands on level 8.
+    The SM-810's console has two Bluetooth modules that disagree. FS-92D16A spreads
+    0-255 across its 32 levels (raw 100 is level 12, 255 is 32) and keeps only the
+    low byte of anything bigger, so 320 lands on level 8. Its twin reads tenths, so
+    raw 80 is level 8.
     """
     low, high, _ = supported
-    if high <= 255:
-        return max(low, min(high, round(level * 10)))
-    return max(low, min(255, math.ceil(level * 255 / (high / 10))))
+    if scale == SCALE_SPREAD:
+        return max(low, min(255, math.ceil(level * 255 / (high / 10))))
+    return max(low, min(high, round(level * 10)))
 
 
 def set_resistance(raw: int) -> bytes:
-    return bytes([OP_SET_RESISTANCE, raw])
+    """One byte, as the standard has it, unless the value needs two."""
+    if raw <= 255:
+        return bytes([OP_SET_RESISTANCE, raw])
+    return bytes([OP_SET_RESISTANCE]) + struct.pack("<h", raw)
 
 
 def set_power(watts: int) -> bytes:

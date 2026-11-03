@@ -64,5 +64,28 @@
         "name": "Target power"
       }
     }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Resistance",
+        "description": "Consoles read the resistance command in one of two ways, and nothing the bike reports says which. If setting a level in Home Assistant lands on a different level on the console, try the other one.",
+        "data": {
+          "resistance_scale": "How the console reads resistance"
+        },
+        "data_description": {
+          "resistance_scale": "Automatic picks spread for consoles with more than 25 levels."
+        }
+      }
+    }
+  },
+  "selector": {
+    "resistance_scale": {
+      "options": {
+        "auto": "Automatic",
+        "tenths": "Tenths of a level (the FTMS standard)",
+        "spread": "0-255 spread over all the levels"
+      }
+    }
   }
 }

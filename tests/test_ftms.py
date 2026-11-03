@@ -60,12 +60,22 @@ def test_resistance_on_a_32_level_console():
     for raw, level in measured.items():
         assert raw * 32 // 255 == level
     for level in range(1, 33):
-        raw = ftms.resistance_raw(level, sm810)
+        raw = ftms.resistance_raw(level, sm810, ftms.SCALE_SPREAD)
         assert 10 <= raw <= 255
         assert raw * 32 // 255 == level
 
 
 def test_resistance_on_a_standard_console():
-    assert ftms.resistance_raw(5, (10, 200, 10)) == 50
-    assert ftms.resistance_raw(30, (10, 200, 10)) == 200
-    assert ftms.resistance_raw(0, (10, 200, 10)) == 10
+    tenths = ftms.SCALE_TENTHS
+    assert ftms.resistance_raw(5, (10, 200, 10), tenths) == 50
+    assert ftms.resistance_raw(30, (10, 200, 10), tenths) == 200
+    assert ftms.resistance_raw(0, (10, 200, 10), tenths) == 10
+    # The SM-810's twin module: level 10 needs raw 100, where spread would send 80 (level 8).
+    assert ftms.resistance_raw(10, (10, 320, 10), tenths) == 100
+    assert ftms.resistance_raw(10, (10, 320, 10), ftms.SCALE_SPREAD) == 80
+    assert ftms.set_resistance(300) == b"\x04\x2c\x01"
+
+
+def test_default_scale():
+    assert ftms.default_scale((10, 320, 10)) == ftms.SCALE_SPREAD
+    assert ftms.default_scale((10, 200, 10)) == ftms.SCALE_TENTHS

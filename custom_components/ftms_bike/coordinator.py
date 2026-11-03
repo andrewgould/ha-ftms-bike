@@ -27,7 +27,13 @@ from homeassistant.helpers.event import async_track_time_interval
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
 from . import ftms
-from .const import COMMAND_TIMEOUT, DEFAULT_RESISTANCE_RANGE, DOMAIN, IDLE_TIMEOUT
+from .const import (
+    COMMAND_TIMEOUT,
+    CONF_RESISTANCE_SCALE,
+    DEFAULT_RESISTANCE_RANGE,
+    DOMAIN,
+    IDLE_TIMEOUT,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -238,7 +244,9 @@ class FtmsCoordinator(DataUpdateCoordinator[BikeState]):
 
     async def async_set_resistance(self, level: float) -> None:
         supported = self.data.resistance_range or DEFAULT_RESISTANCE_RANGE
-        await self._command(ftms.set_resistance(ftms.resistance_raw(level, supported)))
+        scale = (self.config_entry.options.get(CONF_RESISTANCE_SCALE)
+                 or ftms.default_scale(supported))
+        await self._command(ftms.set_resistance(ftms.resistance_raw(level, supported, scale)))
         self.data.target_resistance = level
         self.data.target_power = None
         self.async_set_updated_data(self.data)

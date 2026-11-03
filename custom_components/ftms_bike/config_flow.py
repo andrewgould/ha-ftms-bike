@@ -10,12 +10,14 @@ from typing import Any
 
 import voluptuous as vol
 from homeassistant.components import bluetooth
-from homeassistant.config_entries import ConfigFlow, ConfigFlowResult
+from homeassistant.config_entries import ConfigFlow, ConfigFlowResult, OptionsFlow
 from homeassistant.const import CONF_ADDRESS, CONF_NAME
 from homeassistant.helpers import selector
 
 from . import ftms
-from .const import DOMAIN
+from .const import CONF_RESISTANCE_SCALE, DOMAIN
+
+AUTO = "auto"
 
 
 def _is_bike(info: bluetooth.BluetoothServiceInfoBleak) -> bool:
@@ -80,5 +82,27 @@ class FtmsConfigFlow(ConfigFlow, domain=DOMAIN):
                 vol.Required(CONF_ADDRESS): selector.SelectSelector(selector.SelectSelectorConfig(
                     options=options, mode=selector.SelectSelectorMode.DROPDOWN)),
                 vol.Required(CONF_NAME, default="Indoor bike"): str,
+            }),
+        )
+
+    @staticmethod
+    def async_get_options_flow(config_entry) -> OptionsFlow:
+        return FtmsOptionsFlow()
+
+
+class FtmsOptionsFlow(OptionsFlow):
+    async def async_step_init(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        if user_input is not None:
+            scale = user_input[CONF_RESISTANCE_SCALE]
+            return self.async_create_entry(
+                data={} if scale == AUTO else {CONF_RESISTANCE_SCALE: scale})
+        current = self.config_entry.options.get(CONF_RESISTANCE_SCALE, AUTO)
+        return self.async_show_form(
+            step_id="init",
+            data_schema=vol.Schema({
+                vol.Required(CONF_RESISTANCE_SCALE, default=current): selector.SelectSelector(
+                    selector.SelectSelectorConfig(
+                        options=[AUTO, ftms.SCALE_TENTHS, ftms.SCALE_SPREAD],
+                        translation_key=CONF_RESISTANCE_SCALE)),
             }),
         )
