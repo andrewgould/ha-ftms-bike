@@ -7,13 +7,13 @@ from homeassistant.const import UnitOfPower
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
+from .const import DEFAULT_RESISTANCE_RANGE
 from .coordinator import FtmsConfigEntry
 from .entity import FtmsEntity
 
 # Supported Resistance Level Range is in tenths of a level.
 RESISTANCE_SCALE = 10
-# Ranges to offer before the bike has said what it supports.
-DEFAULT_RESISTANCE = (10, 320, 10)
+# Power range to offer before the bike has said what it supports.
 DEFAULT_POWER = (10, 1000, 10)
 # Bikes claim absurd maximums (9,999 W); nobody needs the slider to go that far.
 POWER_CAP = 1000
@@ -37,7 +37,7 @@ class ResistanceNumber(_SessionNumber):
     _attr_mode = NumberMode.SLIDER
 
     def _range(self) -> tuple[int, int, int]:
-        return self.coordinator.data.resistance_range or DEFAULT_RESISTANCE
+        return self.coordinator.data.resistance_range or DEFAULT_RESISTANCE_RANGE
 
     @property
     def native_min_value(self) -> float:
@@ -55,11 +55,11 @@ class ResistanceNumber(_SessionNumber):
     def native_value(self) -> float | None:
         data = self.coordinator.data
         if data.target_resistance is not None:
-            return data.target_resistance / RESISTANCE_SCALE
+            return data.target_resistance
         return data.values.get("resistance")
 
     async def async_set_native_value(self, value: float) -> None:
-        await self.coordinator.async_set_resistance(round(value * RESISTANCE_SCALE))
+        await self.coordinator.async_set_resistance(value)
 
 
 class PowerNumber(_SessionNumber):

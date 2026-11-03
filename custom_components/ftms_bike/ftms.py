@@ -5,6 +5,7 @@ No Home Assistant imports, so the tests can load it on its own.
 
 from __future__ import annotations
 
+import math
 import struct
 
 FTMS_SERVICE = "00001826-0000-1000-8000-00805f9b34fb"
@@ -108,9 +109,22 @@ def request_control() -> bytes:
     return bytes([OP_REQUEST_CONTROL])
 
 
+def resistance_raw(level: float, supported: tuple[int, int, int]) -> int:
+    """The Set Target Resistance value for a console level.
+
+    The command is one byte in tenths of a level, so it can't reach past level 25.5.
+    Consoles with more levels than that (the SM-810 reports a range of 1-32) spread
+    0-255 across all of them instead: raw 100 is level 12, 200 is 25, 255 is 32.
+    Anything over 255 wraps, so 320 lands on level 8.
+    """
+    low, high, _ = supported
+    if high <= 255:
+        return max(low, min(high, round(level * 10)))
+    return max(low, min(255, math.ceil(level * 255 / (high / 10))))
+
+
 def set_resistance(raw: int) -> bytes:
-    """Target resistance in the bike's raw units (its supported range, tenths of a level)."""
-    return bytes([OP_SET_RESISTANCE]) + struct.pack("<h", raw)
+    return bytes([OP_SET_RESISTANCE, raw])
 
 
 def set_power(watts: int) -> bytes:

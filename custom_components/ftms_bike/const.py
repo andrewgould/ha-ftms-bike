@@ -12,3 +12,5 @@ PLATFORMS = [Platform.NUMBER, Platform.SENSOR, Platform.SWITCH]
 IDLE_TIMEOUT = 300
 # Seconds to wait for the bike to answer a command.
 COMMAND_TIMEOUT = 5
+# Supported Resistance Level Range (tenths of a level) to assume if the bike doesn't say.
+DEFAULT_RESISTANCE_RANGE = (10, 320, 10)

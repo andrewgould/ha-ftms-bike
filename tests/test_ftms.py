@@ -37,7 +37,7 @@ def test_ranges():
 
 def test_commands():
     assert ftms.request_control() == b"\x00"
-    assert ftms.set_resistance(50) == b"\x04\x32\x00"
+    assert ftms.set_resistance(50) == b"\x04\x32"
     assert ftms.set_power(150) == b"\x05\x96\x00"
 
 
@@ -51,3 +51,21 @@ def test_machine_type_from_service_data():
     assert ftms.is_indoor_bike(bytes([0x01, 0x20, 0x00]))
     assert not ftms.is_indoor_bike(bytes([0x01, 0x01, 0x00]))  # treadmill
     assert ftms.is_indoor_bike(None)
+
+
+def test_resistance_on_a_32_level_console():
+    # Measured on the SM-810, which reports a range of 10-320: level = raw * 32 // 255.
+    sm810 = (10, 320, 10)
+    measured = {10: 1, 50: 6, 100: 12, 200: 25, 248: 31, 255: 32}
+    for raw, level in measured.items():
+        assert raw * 32 // 255 == level
+    for level in range(1, 33):
+        raw = ftms.resistance_raw(level, sm810)
+        assert 10 <= raw <= 255
+        assert raw * 32 // 255 == level
+
+
+def test_resistance_on_a_standard_console():
+    assert ftms.resistance_raw(5, (10, 200, 10)) == 50
+    assert ftms.resistance_raw(30, (10, 200, 10)) == 200
+    assert ftms.resistance_raw(0, (10, 200, 10)) == 10
