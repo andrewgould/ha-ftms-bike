@@ -1,0 +1,3 @@
+# The tests cover the FTMS protocol module, which has no dependencies.
+pytest>=8.0.0
+ruff>=0.8.0

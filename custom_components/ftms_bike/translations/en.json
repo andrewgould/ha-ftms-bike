@@ -1,0 +1,68 @@
+{
+  "config": {
+    "flow_title": "{name}",
+    "step": {
+      "bluetooth_confirm": {
+        "title": "Indoor bike",
+        "description": "Set up {name}? Home Assistant won't connect to it until you turn on its session switch, so apps like Kinomap and Zwift keep working as before.",
+        "data": {
+          "name": "Bike name"
+        }
+      },
+      "user": {
+        "title": "Indoor bike",
+        "description": "Pick the bike. Only bikes Home Assistant can hear right now are listed, so pedal for a moment first to wake the console. Setting up doesn't connect to it.",
+        "data": {
+          "address": "Bike",
+          "name": "Bike name"
+        }
+      }
+    },
+    "abort": {
+      "already_configured": "This bike is already set up.",
+      "not_a_bike": "This fitness machine isn't an indoor bike.",
+      "no_bikes": "No indoor bikes can be heard right now. Pedal for a moment to wake the console, then try again."
+    }
+  },
+  "entity": {
+    "switch": {
+      "session": {
+        "name": "Session"
+      }
+    },
+    "sensor": {
+      "speed": {
+        "name": "Speed"
+      },
+      "cadence": {
+        "name": "Cadence"
+      },
+      "power": {
+        "name": "Power"
+      },
+      "resistance": {
+        "name": "Resistance"
+      },
+      "distance": {
+        "name": "Distance"
+      },
+      "energy": {
+        "name": "Calories"
+      },
+      "elapsed": {
+        "name": "Elapsed time"
+      },
+      "heart_rate": {
+        "name": "Heart rate"
+      }
+    },
+    "number": {
+      "target_resistance": {
+        "name": "Target resistance"
+      },
+      "target_power": {
+        "name": "Target power"
+      }
+    }
+  }
+}
