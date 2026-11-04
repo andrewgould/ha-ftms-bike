@@ -15,7 +15,7 @@ from homeassistant.const import CONF_ADDRESS, CONF_NAME
 from homeassistant.helpers import selector
 
 from . import ftms
-from .const import CONF_RESISTANCE_SCALE, DOMAIN
+from .const import CONF_AUTO_SESSION, CONF_RESISTANCE_SCALE, CONF_WATCH_ONLY, DOMAIN
 
 AUTO = "auto"
 
@@ -93,15 +93,20 @@ class FtmsConfigFlow(ConfigFlow, domain=DOMAIN):
 class FtmsOptionsFlow(OptionsFlow):
     async def async_step_init(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         if user_input is not None:
-            scale = user_input[CONF_RESISTANCE_SCALE]
-            return self.async_create_entry(
-                data={} if scale == AUTO else {CONF_RESISTANCE_SCALE: scale})
-        current = self.config_entry.options.get(CONF_RESISTANCE_SCALE, AUTO)
+            data = {key: user_input[key] for key in (CONF_WATCH_ONLY, CONF_AUTO_SESSION)}
+            if user_input[CONF_RESISTANCE_SCALE] != AUTO:
+                data[CONF_RESISTANCE_SCALE] = user_input[CONF_RESISTANCE_SCALE]
+            return self.async_create_entry(data=data)
+        options = self.config_entry.options
         return self.async_show_form(
             step_id="init",
             data_schema=vol.Schema({
-                vol.Required(CONF_RESISTANCE_SCALE, default=current): selector.SelectSelector(
-                    selector.SelectSelectorConfig(
+                vol.Required(CONF_WATCH_ONLY, default=options.get(CONF_WATCH_ONLY, False)): bool,
+                vol.Required(CONF_AUTO_SESSION,
+                             default=options.get(CONF_AUTO_SESSION, False)): bool,
+                vol.Required(CONF_RESISTANCE_SCALE,
+                             default=options.get(CONF_RESISTANCE_SCALE, AUTO)):
+                    selector.SelectSelector(selector.SelectSelectorConfig(
                         options=[AUTO, ftms.SCALE_TENTHS, ftms.SCALE_SPREAD],
                         translation_key=CONF_RESISTANCE_SCALE)),
             }),

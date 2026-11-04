@@ -5,12 +5,17 @@ lock out training apps like Kinomap and Zwift. Instead nothing connects until th
 session switch is turned on, and the session ends when it's turned off, when the
 bike drops the connection, or after IDLE_TIMEOUT without pedalling. Nothing
 reconnects by itself, and a session never survives a restart.
+
+Two options change that for a bike nothing else uses, like the spare module on a
+console with two. Automatic sessions start whenever the bike is heard, and watch
+only never sends it a command, so the app controlling the ride keeps control.
 """
 
 from __future__ import annotations
 
 import asyncio
 import logging
+import math
 import time
 from dataclasses import dataclass, field
 from datetime import timedelta
@@ -28,8 +33,11 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
 from . import ftms
 from .const import (
+    AUTO_RETRY,
     COMMAND_TIMEOUT,
+    CONF_AUTO_SESSION,
     CONF_RESISTANCE_SCALE,
+    CONF_WATCH_ONLY,
     DEFAULT_RESISTANCE_RANGE,
     DOMAIN,
     IDLE_TIMEOUT,
@@ -62,8 +70,18 @@ class FtmsCoordinator(DataUpdateCoordinator[BikeState]):
     def __init__(self, hass: HomeAssistant, entry: FtmsConfigEntry) -> None:
         super().__init__(hass, _LOGGER, name=entry.title, config_entry=entry)
         self.address: str = entry.data[CONF_ADDRESS]
+        self.watch_only: bool = entry.options.get(CONF_WATCH_ONLY, False)
+        self.auto_session: bool = entry.options.get(CONF_AUTO_SESSION, False)
         self.data = BikeState()
         self._client: BleakClientWithServiceCache | None = None
+        self._connecting = False
+        # An automatic session waits until then (monotonic). Infinity means until the
+        # bike goes quiet, which is how a session switched off by hand stays off.
+        self._auto_after = 0.0
+        # When an automatic session last failed to connect (bluetooth.MONOTONIC_TIME).
+        # Home Assistant counts a bike as present for minutes after it falls asleep, so
+        # only try again once it has advertised since.
+        self._auto_failed = 0.0
         self._has_control = False
         self._command_lock = asyncio.Lock()
         self._response: asyncio.Future[tuple[int, int]] | None = None
@@ -90,6 +108,11 @@ class FtmsCoordinator(DataUpdateCoordinator[BikeState]):
         ))
         entry.async_on_unload(bluetooth.async_track_unavailable(
             self.hass, self._on_unavailable, self.address, connectable=True))
+        if self.auto_session:
+            # Unchanged advertisements don't call _on_advertisement, so retries need a clock.
+            entry.async_on_unload(async_track_time_interval(
+                self.hass, lambda _now: self._maybe_auto_start(), timedelta(seconds=30)))
+            self._maybe_auto_start()
 
     async def async_stop(self) -> None:
         await self.async_end_session("unloading")
@@ -100,9 +123,12 @@ class FtmsCoordinator(DataUpdateCoordinator[BikeState]):
         if not self.data.in_range:
             self.data.in_range = True
             self.async_set_updated_data(self.data)
+        self._maybe_auto_start()
 
     @callback
     def _on_unavailable(self, info: bluetooth.BluetoothServiceInfoBleak) -> None:
+        # The console has gone to sleep, so the next time it's heard is a new ride.
+        self._auto_after = 0.0
         # Some consoles stop advertising while connected, so silence only counts
         # when there's no session.
         if not self.data.connected and self.data.in_range:
@@ -111,13 +137,34 @@ class FtmsCoordinator(DataUpdateCoordinator[BikeState]):
 
     # Sessions
 
+    @callback
+    def _maybe_auto_start(self) -> None:
+        if (not self.auto_session or self._client is not None or self._connecting
+                or time.monotonic() < self._auto_after
+                or not bluetooth.async_address_present(self.hass, self.address, True)):
+            return
+        info = bluetooth.async_last_service_info(self.hass, self.address, True)
+        if info is None or info.time <= self._auto_failed:
+            return
+        self.config_entry.async_create_background_task(
+            self.hass, self._auto_start(), f"{DOMAIN} {self.address} automatic session")
+
+    async def _auto_start(self) -> None:
+        try:
+            await self.async_start_session()
+        except HomeAssistantError as err:
+            _LOGGER.debug("%s: automatic session didn't start: %s", self.address, err)
+            self._auto_after = time.monotonic() + AUTO_RETRY
+            self._auto_failed = bluetooth.MONOTONIC_TIME()
+
     async def async_start_session(self) -> None:
-        if self._client is not None:
+        if self._client is not None or self._connecting:
             return
         device = bluetooth.async_ble_device_from_address(self.hass, self.address, True)
         if device is None:
             raise HomeAssistantError(
                 "The bike isn't advertising. Pedal for a moment to wake its console.")
+        self._connecting = True
         try:
             client = await establish_connection(
                 BleakClientWithServiceCache, device, self.config_entry.title,
@@ -127,11 +174,13 @@ class FtmsCoordinator(DataUpdateCoordinator[BikeState]):
             raise HomeAssistantError(
                 "Couldn't connect to the bike. Is Kinomap or another app connected to it?"
             ) from err
+        finally:
+            self._connecting = False
         self._client = client
         try:
             await self._set_up(client)
         except ERRORS as err:
-            await self.async_end_session(f"setup failed: {err}")
+            await self.async_end_session(f"setup failed: {err}", retry_in=AUTO_RETRY)
             raise HomeAssistantError(f"The bike connected but didn't set up: {err}") from err
         self._last_pedal = time.monotonic()
         self._cancel_idle = async_track_time_interval(
@@ -146,7 +195,8 @@ class FtmsCoordinator(DataUpdateCoordinator[BikeState]):
                            (ftms.POWER_RANGE, "power_range")):
             if client.services.get_characteristic(uuid) is not None:
                 setattr(state, attr, ftms.parse_range(await client.read_gatt_char(uuid)))
-        if client.services.get_characteristic(ftms.CONTROL_POINT) is not None:
+        if (not self.watch_only
+                and client.services.get_characteristic(ftms.CONTROL_POINT) is not None):
             await client.start_notify(ftms.CONTROL_POINT, self._on_control_point)
         await client.start_notify(ftms.INDOOR_BIKE_DATA, self._on_bike_data)
         state.connected = state.in_range = True
@@ -154,7 +204,11 @@ class FtmsCoordinator(DataUpdateCoordinator[BikeState]):
         state.target_resistance = state.target_power = None
         self.async_set_updated_data(state)
 
-    async def async_end_session(self, reason: str = "turned off") -> None:
+    async def async_end_session(self, reason: str = "turned off",
+                                retry_in: float | None = None) -> None:
+        """retry_in is when an automatic session may start again; None waits until
+        the bike goes quiet."""
+        self._auto_after = time.monotonic() + retry_in if retry_in is not None else math.inf
         client, self._client = self._client, None
         self._has_control = False
         if self._cancel_idle:
@@ -176,13 +230,15 @@ class FtmsCoordinator(DataUpdateCoordinator[BikeState]):
     @callback
     def _on_disconnect(self, client: BleakClientWithServiceCache) -> None:
         if client is self._client:
-            self.hass.async_create_task(self.async_end_session("the bike disconnected"))
+            self.hass.async_create_task(
+                self.async_end_session("the bike disconnected", retry_in=AUTO_RETRY))
 
     @callback
     def _check_idle(self, _now) -> None:
         if time.monotonic() - self._last_pedal > IDLE_TIMEOUT:
-            self.hass.async_create_task(
-                self.async_end_session(f"no pedalling for {IDLE_TIMEOUT // 60} minutes"))
+            # Look again after as long as it waited, in case the ride was only paused.
+            self.hass.async_create_task(self.async_end_session(
+                f"no pedalling for {IDLE_TIMEOUT // 60} minutes", retry_in=IDLE_TIMEOUT))
 
     # Notifications
 
@@ -208,6 +264,8 @@ class FtmsCoordinator(DataUpdateCoordinator[BikeState]):
     # Commands
 
     async def _command(self, payload: bytes) -> None:
+        if self.watch_only:
+            raise HomeAssistantError("This bike is set to watch only.")
         if self._client is None:
             raise HomeAssistantError("Start a bike session first.")
         async with self._command_lock:

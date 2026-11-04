@@ -26,6 +26,23 @@ only during a **session** that someone starts:
 Outside a session the bike is free for any app, and the readings show as
 unavailable.
 
+## Watching rides another app controls
+
+Some consoles have **two** Bluetooth modules, and an app connects to only one
+of them. The other can be left to Home Assistant, which then sees every ride
+the app runs. Two options, under **Configure** on that bike, set this up:
+
+- **Watch only** never sends the bike a command, so the app keeps control of
+  the resistance. The target controls go away.
+- **Start sessions automatically** connects whenever the bike is heard, which
+  for a spare module means whenever the console wakes. A session switched off
+  by hand stays off until the console goes to sleep. One that ended after 5
+  minutes without pedalling looks again 5 minutes later, in case the ride was
+  only paused.
+
+Only turn on automatic sessions for a module the app doesn't use, or the app
+won't be able to connect.
+
 | Entity | Notes |
 | --- | --- |
 | Session | Switch. Available while the bike is advertising (its console is awake) |
@@ -83,7 +100,9 @@ connection slots while it lasts.
 - Lifespan Fitness SM-810 Commercial spin bike. Its console has **two** FTMS
   modules, advertising as `FS-92D16A` and `62F-000002-B2`. Both work, but they
   read resistance differently: `FS-92D16A` spreads 0-255 over its 32 levels,
-  the other reads tenths. Either can be set up; one is enough.
+  the other reads tenths. With Kinomap on `FS-92D16A`, `62F-000002-B2` set to
+  watch only with automatic sessions reads every ride while Kinomap keeps
+  control of the resistance.
 - An ESPHome Bluetooth proxy on an ESP32-S3, about -65 dBm through a wall
 - Home Assistant 2026.10
 

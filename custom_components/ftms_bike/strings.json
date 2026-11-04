@@ -68,13 +68,17 @@
   "options": {
     "step": {
       "init": {
-        "title": "Resistance",
-        "description": "Consoles read the resistance command in one of two ways, and nothing the bike reports says which. If setting a level in Home Assistant lands on a different level on the console, try the other one.",
+        "title": "Options",
+        "description": "Most bikes need none of these. They're for a bike nothing else connects to, like the spare Bluetooth module on a console that has two: Home Assistant can then watch every ride without getting in the way of the app running it.",
         "data": {
+          "watch_only": "Watch only",
+          "auto_session": "Start sessions automatically",
           "resistance_scale": "How the console reads resistance"
         },
         "data_description": {
-          "resistance_scale": "Automatic picks spread for consoles with more than 25 levels."
+          "watch_only": "Never send the bike commands, so the app running the ride keeps control. The target resistance and target power controls go away.",
+          "auto_session": "Connect whenever the bike is heard, instead of waiting for the Session switch. While this is on, an app can't connect to this bike, so only turn it on for a bike the app doesn't use. Switching a session off keeps it off until the console goes to sleep.",
+          "resistance_scale": "Consoles read the resistance command in one of two ways, and nothing the bike reports says which. If setting a level lands on a different level on the console, try the other one. Automatic picks spread for consoles with more than 25 levels."
         }
       }
     }

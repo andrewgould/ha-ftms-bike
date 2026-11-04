@@ -16,3 +16,9 @@ COMMAND_TIMEOUT = 5
 DEFAULT_RESISTANCE_RANGE = (10, 320, 10)
 
 CONF_RESISTANCE_SCALE = "resistance_scale"
+# Never send the bike commands: for watching a ride another app is controlling.
+CONF_WATCH_ONLY = "watch_only"
+# Start a session whenever the bike is heard, instead of waiting for the switch.
+CONF_AUTO_SESSION = "auto_session"
+# Seconds before an automatic session tries again after a failed connect or a dropped one.
+AUTO_RETRY = 60
