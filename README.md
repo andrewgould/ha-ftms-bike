@@ -26,6 +26,22 @@ only during a **session** that someone starts:
 Outside a session the bike is free for any app, and the readings show as
 unavailable.
 
+## Totals
+
+The console's distance, calories and time count from when it woke, and drop
+back to zero whenever an app starts or ends a workout. The totals add up what
+each reading moved on from the last, so a reset just starts that count again
+from zero. **Work** is power multiplied by time (kJ). The console doesn't count
+it; at the efficiency of human muscle, 1 kJ of work is roughly 1 kcal burned.
+
+The totals are `total_increasing` sensors, so a **Statistics graph** card with
+*Change* and a period of a day shows daily distance or work, the way the Energy
+dashboard shows a plug. For a "today" figure, add a **Utility meter** helper on
+the total with a daily cycle.
+
+If a console has two modules and both have sessions during the same ride (one
+watching, say, and one switched on to set the resistance), both count it.
+
 ## Watching rides another app controls
 
 Some consoles have **two** Bluetooth modules, and an app connects to only one
@@ -50,6 +66,9 @@ won't be able to connect.
 | Heart rate | Only when a heart-rate strap is paired to the console |
 | Target resistance | In the console's own levels. Setting it takes control of the bike and cancels any target power |
 | Target power | Watts. The console adjusts the resistance itself to hold it ("ERG mode") |
+
+| Total distance, Total work, Total calories, Total ride time | Count every session, for good, like a smart plug's energy. Available all the time |
+| Ride distance, Ride work, Ride calories, Ride time, Ride average power | The latest session. They restart when a session starts and keep the last ride's figures until the next |
 
 The targets work only during a session. Scripts and automations should turn on
 the session first.

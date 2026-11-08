@@ -3,6 +3,18 @@
 Versions follow [semantic versioning](https://semver.org/). The version in
 `manifest.json` is what HACS installs, and each release tag must match it.
 
+## 1.2.0
+
+- **Totals**, like a smart plug's energy counter: total distance, work (power
+  over time, in kJ), calories and ride time. They count every session for good
+  and survive restarts, so Home Assistant's statistics can show them per day,
+  week or month.
+- **Ride** figures for the latest session: distance, work, calories, time and
+  average power. They restart when a session starts and keep the last ride's
+  figures until the next.
+- Both see through the console's own counters dropping back to zero, which
+  happens whenever an app starts or ends a workout.
+
 ## 1.1.0
 
 - **Watch only** option: the bike is never sent a command, so an app running

@@ -54,6 +54,33 @@
       },
       "heart_rate": {
         "name": "Heart rate"
+      },
+      "total_distance": {
+        "name": "Total distance"
+      },
+      "total_work": {
+        "name": "Total work"
+      },
+      "total_calories": {
+        "name": "Total calories"
+      },
+      "total_time": {
+        "name": "Total ride time"
+      },
+      "ride_distance": {
+        "name": "Ride distance"
+      },
+      "ride_work": {
+        "name": "Ride work"
+      },
+      "ride_calories": {
+        "name": "Ride calories"
+      },
+      "ride_time": {
+        "name": "Ride time"
+      },
+      "ride_average_power": {
+        "name": "Ride average power"
       }
     },
     "number": {

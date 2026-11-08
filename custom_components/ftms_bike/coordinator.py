@@ -29,6 +29,7 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.device_registry import CONNECTION_BLUETOOTH, DeviceInfo
 from homeassistant.helpers.event import async_track_time_interval
+from homeassistant.helpers.storage import Store
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
 from . import ftms
@@ -42,10 +43,13 @@ from .const import (
     DOMAIN,
     IDLE_TIMEOUT,
 )
+from .tally import Tally
 
 _LOGGER = logging.getLogger(__name__)
 
 ERRORS = (BleakError, TimeoutError, EOFError)
+# Seconds to hold tally changes before writing them to disk.
+SAVE_DELAY = 60
 
 
 @dataclass
@@ -73,6 +77,8 @@ class FtmsCoordinator(DataUpdateCoordinator[BikeState]):
         self.watch_only: bool = entry.options.get(CONF_WATCH_ONLY, False)
         self.auto_session: bool = entry.options.get(CONF_AUTO_SESSION, False)
         self.data = BikeState()
+        self.tally = Tally()
+        self._store: Store[dict] = Store(hass, 1, f"{DOMAIN}.{entry.entry_id}")
         self._client: BleakClientWithServiceCache | None = None
         self._connecting = False
         # An automatic session waits until then (monotonic). Infinity means until the
@@ -95,6 +101,9 @@ class FtmsCoordinator(DataUpdateCoordinator[BikeState]):
             model="Indoor bike",
         )
 
+    async def async_load(self) -> None:
+        self.tally = Tally(await self._store.async_load())
+
     async def async_start(self) -> None:
         self.data.in_range = bluetooth.async_address_present(self.hass, self.address, True)
         # The entities already exist; tell them. Unchanged advertisements don't
@@ -116,6 +125,7 @@ class FtmsCoordinator(DataUpdateCoordinator[BikeState]):
 
     async def async_stop(self) -> None:
         await self.async_end_session("unloading")
+        await self._store.async_save(self.tally.as_dict())
 
     @callback
     def _on_advertisement(self, info: bluetooth.BluetoothServiceInfoBleak,
@@ -202,6 +212,7 @@ class FtmsCoordinator(DataUpdateCoordinator[BikeState]):
         state.connected = state.in_range = True
         state.values = {}
         state.target_resistance = state.target_power = None
+        self.tally.start_ride()
         self.async_set_updated_data(state)
 
     async def async_end_session(self, reason: str = "turned off",
@@ -214,7 +225,9 @@ class FtmsCoordinator(DataUpdateCoordinator[BikeState]):
         if self._cancel_idle:
             self._cancel_idle()
             self._cancel_idle = None
+        self.tally.stop()
         if client is not None:
+            self._store.async_delay_save(self.tally.as_dict, 0)
             _LOGGER.info("%s: session ended (%s)", self.address, reason)
             try:
                 await client.disconnect()
@@ -248,11 +261,15 @@ class FtmsCoordinator(DataUpdateCoordinator[BikeState]):
         except Exception:  # a malformed frame shouldn't end the session
             _LOGGER.debug("%s: couldn't parse %s", self.address, data.hex())
             return
+        now = time.monotonic()
         if fields.get("cadence", 0) > 0:
-            self._last_pedal = time.monotonic()
+            self._last_pedal = now
         state = self.data
+        counted = self.tally.add(fields, now)
+        if counted:
+            self._store.async_delay_save(self.tally.as_dict, SAVE_DELAY)
         # Consoles send each reading more than once; only push changes.
-        if any(state.values.get(k) != v for k, v in fields.items()):
+        if counted or any(state.values.get(k) != v for k, v in fields.items()):
             state.values.update(fields)
             self.async_set_updated_data(state)
 
